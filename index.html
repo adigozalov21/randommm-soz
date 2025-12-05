@@ -7,16 +7,21 @@
 <style>
   body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }
   h1 { text-align: center; }
-  .filters, .finder, .add-word { margin: 20px 0; }
+  .filters, .finder, .add-word, .pending { margin: 20px 0; }
   label { margin-right: 10px; }
-  select, input[type="text"], input[type="number"] { margin-right: 10px; padding: 5px; }
-  button { padding: 5px 15px; }
+  select, input[type="text"], input[type="number"], input[type="email"] { margin-right: 10px; padding: 5px; }
+  button { padding: 5px 15px; margin-top: 5px; }
   .result, .pattern-result, .add-word-result { margin-top: 10px; font-weight: bold; }
   .pattern-inputs { display: flex; gap: 5px; margin-top: 10px; }
   .pattern-inputs input { width: 30px; height: 30px; text-align: center; font-size: 16px; }
   .word-list { margin-top: 10px; }
   .word-list span { display: inline-block; margin: 3px 5px; padding: 3px 6px; background: #f0f0f0; border-radius: 4px; }
+  .pending span { display:block; margin: 3px 0; }
 </style>
+<script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+<script>
+  (function(){emailjs.init("YOUR_PUBLIC_KEY");})(); // replace with your EmailJS public key
+</script>
 </head>
 <body>
 
@@ -70,22 +75,28 @@
 
 <!-- ADD WORD SECTION -->
 <div class="add-word">
-  <h3>Add New Word</h3>
-  <input type="text" id="new-word-text" placeholder="Word">
+  <h3>Submit a Word (Contributors Only)</h3>
+  <input type="email" id="contributor-email" placeholder="Your email" required>
+  <input type="text" id="new-word-text" placeholder="Word" required>
   <select id="new-word-type">
     <option value="noun">Noun</option>
     <option value="verb">Verb</option>
     <option value="adjective">Adjective</option>
   </select>
-  <input type="number" id="new-word-syllables" min="1" max="10" placeholder="Syllables">
-  <button id="add-word-btn">Add Word</button>
+  <input type="number" id="new-word-syllables" min="1" max="10" placeholder="Syllables" required>
+  <button id="add-word-btn">Submit Word</button>
   <div class="add-word-result" id="add-word-result"></div>
 </div>
 
+<!-- PENDING WORDS (Admin view) -->
+<div class="pending">
+  <h3>Pending Words (Admin)</h3>
+  <div id="pending-list"></div>
+</div>
+
 <script>
-// 300 Azerbaijani words (just words, type & syllables default to noun & 2)
-const WORDS = [
-"alma","armud","heyva","bazar","maşın","ev","kitab","qələm","dəftər","pəncərə",
+// 300 Azerbaijani words
+const WORDS = ["alma","armud","heyva","bazar","maşın","ev","kitab","qələm","dəftər","pəncərə",
 "qapı","yol","küçə","mahalle","kənd","şəhər","dağ","təpə","dərə","çay",
 "göl","dəniz","günəş","ay","ulduz","bulud","yağış","qar","külək","hava",
 "saat","gün","gecə","milli","dost","qardaş","bacı","ana","ata",
@@ -112,6 +123,8 @@ const WORDS = [
 "göz","qulaq","burun","ağız","diş","saç","ürək","qan","beyin","əziz","sevilən",
 "əzizlər","qohum","baba","nənə"
 ].map(w => ({ text: w, type:"noun", syllables:2 }));
+
+let PENDING_WORDS = [];
 
 // UNIVERSAL FILTER FUNCTION
 function searchWords(filters = {}) {
@@ -141,12 +154,8 @@ document.getElementById("generate-btn").addEventListener("click", () => {
   const contains = document.getElementById("filter-contains").value.trim();
 
   const filtered = searchWords({ type, syllables, startsWith, endsWith, contains });
-  if (filtered.length > 0) {
-    const word = filtered[Math.floor(Math.random() * filtered.length)];
-    document.getElementById("generate-result").innerText = word.text;
-  } else {
-    document.getElementById("generate-result").innerText = "No matching word found.";
-  }
+  document.getElementById("generate-result").innerText =
+    filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)].text : "No matching word found.";
 });
 
 // WORD FINDER (CROSSWORD STYLE)
@@ -157,37 +166,65 @@ document.getElementById("find-pattern-btn").addEventListener("click", () => {
 
   const result = searchWords({ pattern });
   const display = document.getElementById("pattern-result");
-  if (result.length > 0) {
-    display.innerHTML = result.map(w => `<span>${w.text}</span>`).join("");
-  } else {
-    display.innerText = "No matching words found.";
-  }
+  display.innerHTML = result.length > 0 ? result.map(w => `<span>${w.text}</span>`).join("") : "No matching words found.";
 });
 
-// ADD NEW WORD FUNCTION
-function addWord(newWord) {
-  const exists = WORDS.some(w => w.text === newWord.text);
-  if (!exists) {
-    WORDS.push(newWord);
-    return `${newWord.text} added successfully.`;
-  } else {
-    return `${newWord.text} already exists.`;
-  }
-}
-
+// ADD WORD / PENDING SYSTEM
 document.getElementById("add-word-btn").addEventListener("click", () => {
+  const email = document.getElementById("contributor-email").value.trim().toLowerCase();
   const text = document.getElementById("new-word-text").value.trim().toLowerCase();
   const type = document.getElementById("new-word-type").value;
   const syllables = parseInt(document.getElementById("new-word-syllables").value);
 
-  if (!text || !type || !syllables) {
+  if (!email || !text || !type || !syllables) {
     document.getElementById("add-word-result").innerText = "Please fill all fields.";
     return;
   }
 
-  const message = addWord({ text, type, syllables });
-  document.getElementById("add-word-result").innerText = message;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    document.getElementById("add-word-result").innerText = "Please enter a valid email.";
+    return;
+  }
+
+  if (WORDS.some(w => w.text === text) || PENDING_WORDS.some(w => w.text === text)) {
+    document.getElementById("add-word-result").innerText = "This word already exists or is pending.";
+    return;
+  }
+
+  const newWord = { text, type, syllables, email, submittedOn: new Date().toISOString() };
+  PENDING_WORDS.push(newWord);
+  document.getElementById("add-word-result").innerText = "Thanks! Your word suggestion is pending approval.";
+  updatePendingList();
+
+  // send thank-you email via EmailJS
+  emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", { user_email: email, word: text })
+    .then(() => console.log("Thank-you email sent"))
+    .catch(err => console.error("Email failed", err));
 });
+
+// ADMIN PENDING LIST
+function updatePendingList() {
+  const container = document.getElementById("pending-list");
+  container.innerHTML = "";
+  PENDING_WORDS.forEach((w, i) => {
+    const span = document.createElement("span");
+    span.innerHTML = `${w.text} (${w.type}, ${w.syllables}) - ${w.email} 
+      <button onclick="approveWord(${i})">Approve</button> 
+      <button onclick="rejectWord(${i})">Reject</button>`;
+    container.appendChild(span);
+  });
+}
+
+function approveWord(index) {
+  WORDS.push(PENDING_WORDS[index]);
+  PENDING_WORDS.splice(index, 1);
+  updatePendingList();
+}
+
+function rejectWord(index) {
+  PENDING_WORDS.splice(index, 1);
+  updatePendingList();
+}
 </script>
 </body>
 </html>
