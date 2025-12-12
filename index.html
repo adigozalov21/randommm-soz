@@ -20,7 +20,7 @@
 </style>
 <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
 <script>
-  (function(){emailjs.init("YOUR_PUBLIC_KEY");})(); // replace with your EmailJS public key
+  (function(){emailjs.init("YOUR_PUBLIC_KEY");})(); // Replace with your EmailJS public key
 </script>
 </head>
 <body>
@@ -95,34 +95,17 @@
 </div>
 
 <script>
-// 300 Azerbaijani words
-const WORDS = ["alma","armud","heyva","bazar","maşın","ev","kitab","qələm","dəftər","pəncərə",
-"qapı","yol","küçə","mahalle","kənd","şəhər","dağ","təpə","dərə","çay",
-"göl","dəniz","günəş","ay","ulduz","bulud","yağış","qar","külək","hava",
-"saat","gün","gecə","milli","dost","qardaş","bacı","ana","ata",
-"uşaq","qız","oğlan","qoca","yaşlı","gənc","insan","adam","ailə","otaq",
-"yataq","stol","stul","divar","tavan","mətbəx","telefon","kompyuter","internet","şəbəkə",
-"ölkə","dil","söz","cümlə","dostluq","sevgi","məhəbbət","həyat","xəyat","arzu",
-"ümid","xəbər","sual","cavab","fikirlər","zaman","vaxt","dəqiqə","saniyə","iş",
-"məşğuliyyət","məktəb","müəllim","tələbə","kitabxana","sinif","test","imtahan","nəticə","uğur",
-"məqsəd","hədəf","addım","səyahət","yolçu","qatar","avtomobil","avtobus","təyyarə","gəmi",
-"kartof","pomidor","sogan","çörək","su","çay","kofe","şorba","quyu","göyərti",
-"meyvə","tərəvəz","şirniyyat","şəkər","duz","isti","soyuq","çox","az","böyük",
-"kiçik","uzun","qısa","yeni","köhnə","gözəl","son","ilk","sürətli","yavaş",
-"yaxşı","pis","həmişə","tez","gec","sabah","bu gün","dünən","keçmiş","gələcək",
-"indi","bəzi","hər","hər kəs","heç kim","yaxın","uzaq","yaxşılıq","pislik","doğru",
-"səhv","həqiqət","yalan","sükut","səs","bax","gör","eşit","danış","yaz",
-"oxu","get","gətir","düşün","bil","bilmək","anla","şaşır","gül","ağla",
-"sevin","qorxa","xoşbəxt","qəmli","sevincli","kədərli","ac","tox","su iç","yemək",
-"yat","oyan","yaddaş","xatirə","xatırlamaq","unut","xoş","təhlükəsiz","sakit","səsli",
-"qaranlıq","işıq","işıqlı","qar","icesiz","istirahət","istirahət et","hərəkət","dur","otur",
-"getmək","gəlmək","qalmaq","çalış","rinf","rəng","qırmızı","yaşıl","mavi","ağ",
-"qara","sarı","boz","rəngli","rəngsiz","musıqı","mahnı","melodiya","ritm","ritmik",
-"yanaş","addımla","orta","geri","irəli","sol","sağ","yuxarı","aşağı","yuxarıda",
-"aşağıda","içəri","xaric","ətraf","qəlb","ruh","bədən","baş","ayaq","əl","barmaq",
-"göz","qulaq","burun","ağız","diş","saç","ürək","qan","beyin","əziz","sevilən",
-"əzizlər","qohum","baba","nənə"
-].map(w => ({ text: w, type:"noun", syllables:2 }));
+// Sample Azerbaijani words with realistic types and syllables
+const WORDS = [
+  {text:"alma", type:"noun", syllables:2},
+  {text:"getmək", type:"verb", syllables:2},
+  {text:"gözəl", type:"adjective", syllables:2},
+  {text:"ev", type:"noun", syllables:1},
+  {text:"oxumaq", type:"verb", syllables:3},
+  {text:"böyük", type:"adjective", syllables:2},
+  {text:"kitab", type:"noun", syllables:2},
+  {text:"yazmaq", type:"verb", syllables:2}
+];
 
 let PENDING_WORDS = [];
 
@@ -148,7 +131,8 @@ function searchWords(filters = {}) {
 // GENERATE RANDOM WORD
 document.getElementById("generate-btn").addEventListener("click", () => {
   const type = document.getElementById("filter-type").value;
-  const syllables = parseInt(document.getElementById("filter-syllables").value) || null;
+  const syllablesInput = parseInt(document.getElementById("filter-syllables").value);
+  const syllables = isNaN(syllablesInput) ? null : syllablesInput;
   const startsWith = document.getElementById("filter-starts").value.trim();
   const endsWith = document.getElementById("filter-ends").value.trim();
   const contains = document.getElementById("filter-contains").value.trim();
@@ -162,6 +146,8 @@ document.getElementById("generate-btn").addEventListener("click", () => {
 document.getElementById("find-pattern-btn").addEventListener("click", () => {
   const inputs = Array.from(document.querySelectorAll("#pattern-inputs input"));
   const pattern = inputs.map(input => input.value.trim().toLowerCase() || null);
+
+  // Remove trailing nulls for flexible search
   while(pattern.length && pattern[pattern.length -1] === null) pattern.pop();
 
   const result = searchWords({ pattern });
@@ -202,28 +188,35 @@ document.getElementById("add-word-btn").addEventListener("click", () => {
     .catch(err => console.error("Email failed", err));
 });
 
-// ADMIN PENDING LIST
+// UPDATE PENDING WORD LIST
 function updatePendingList() {
   const container = document.getElementById("pending-list");
   container.innerHTML = "";
   PENDING_WORDS.forEach((w, i) => {
     const span = document.createElement("span");
     span.innerHTML = `${w.text} (${w.type}, ${w.syllables}) - ${w.email} 
-      <button onclick="approveWord(${i})">Approve</button> 
-      <button onclick="rejectWord(${i})">Reject</button>`;
+      <button data-index="${i}" class="approve-btn">Approve</button> 
+      <button data-index="${i}" class="reject-btn">Reject</button>`;
     container.appendChild(span);
   });
-}
 
-function approveWord(index) {
-  WORDS.push(PENDING_WORDS[index]);
-  PENDING_WORDS.splice(index, 1);
-  updatePendingList();
-}
+  // Add event listeners for buttons
+  document.querySelectorAll(".approve-btn").forEach(btn => {
+    btn.onclick = () => {
+      const index = parseInt(btn.getAttribute("data-index"));
+      WORDS.push(PENDING_WORDS[index]);
+      PENDING_WORDS.splice(index, 1);
+      updatePendingList();
+    };
+  });
 
-function rejectWord(index) {
-  PENDING_WORDS.splice(index, 1);
-  updatePendingList();
+  document.querySelectorAll(".reject-btn").forEach(btn => {
+    btn.onclick = () => {
+      const index = parseInt(btn.getAttribute("data-index"));
+      PENDING_WORDS.splice(index, 1);
+      updatePendingList();
+    };
+  });
 }
 </script>
 </body>
